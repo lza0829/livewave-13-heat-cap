@@ -1,9 +1,16 @@
+import json
+
 from app.db import 连接
 from app.seed import 此刻
+from app.services import 上限闸
 
 
 def 跑贯验() -> dict:
-    """窗输出与撤回互证：已关闭窗的点赞/送礼须等于窗内事件合计；撤回后版本与末次撤回一致。"""
+    """窗输出与撤回互证：已关闭窗的点赞/送礼须等于窗内事件合计；撤回后版本与末次撤回一致。
+
+    上限闸同口径互证：任何窗主指标不得越热度上限；撤回单不得把窗推过上限；
+    超上限旁路须在旁路匣留证且事件确为已旁路未挂窗。
+    """
     conn = 连接()
     try:
         问题 = []
@@ -11,6 +18,7 @@ def 跑贯验() -> dict:
         已关闭 = conn.execute("SELECT * FROM 热度窗 WHERE 状态='已关闭'").fetchall()
         撤回数 = conn.execute("SELECT COUNT(*) FROM 撤回单").fetchone()[0]
         旁路数 = conn.execute("SELECT COUNT(*) FROM 旁路匣").fetchone()[0]
+        上限 = 上限闸.取上限(conn)
 
         for 窗 in 已关闭:
             agg = conn.execute(
@@ -38,6 +46,35 @@ def 跑贯验() -> dict:
         ).fetchone()[0]
         if 脏旁路:
             问题.append(f"旁路事件仍挂窗键:{脏旁路}")
+
+        # 上限闸互证①：任何窗（开启/已关闭同口径）主指标不得越热度上限
+        for w in conn.execute(
+            "SELECT 窗键, 点赞合计 FROM 热度窗 WHERE 点赞合计 > ?", (上限,)
+        ):
+            问题.append(f"窗{w['窗键']}点赞合计{w['点赞合计']}越热度上限{上限}")
+
+        # 上限闸互证②：撤回单不得把窗推过上限（防「窗已顶格撤回仍累加」半截）
+        坏撤 = conn.execute(
+            "SELECT COUNT(*) FROM 撤回单 WHERE 新点赞 > ?", (上限,)
+        ).fetchone()[0]
+        if 坏撤:
+            问题.append(f"撤回单新点赞越热度上限{上限}:{坏撤}条")
+
+        # 上限闸互证③：超上限旁路证据链——留证 ↔ 事件已旁路未挂窗
+        for r in conn.execute("SELECT * FROM 旁路匣 WHERE 原因=?", (上限闸.旁路原因,)):
+            try:
+                载荷 = json.loads(r["载荷"])
+            except Exception:
+                问题.append(f"旁路匣#{r['编号']}载荷不可解析")
+                continue
+            编号 = 载荷.get("事件编号")
+            ev = conn.execute(
+                "SELECT 命运, 窗键 FROM 互动事件 WHERE 事件编号=?", (编号,)
+            ).fetchone()
+            if not ev:
+                问题.append(f"超上限旁路{编号}无事件落库")
+            elif ev["命运"] != "已旁路" or ev["窗键"] != "":
+                问题.append(f"超上限旁路{编号}事件命运{ev['命运']}与留证不符")
 
         通过 = 1 if not 问题 else 0
         说明 = "窗输出与事件/撤回互证通过" if 通过 else "；".join(问题)[:800]

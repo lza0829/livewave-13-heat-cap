@@ -15,6 +15,7 @@ def 总览() -> dict:
             "互动事件": c("SELECT COUNT(*) FROM 互动事件"),
             "已入窗": c("SELECT COUNT(*) FROM 互动事件 WHERE 命运='已入窗'"),
             "已旁路": c("SELECT COUNT(*) FROM 互动事件 WHERE 命运='已旁路'"),
+            "超上限旁路": c("SELECT COUNT(*) FROM 旁路匣 WHERE 原因='超热度上限'"),
             "撤回单数": c("SELECT COUNT(*) FROM 撤回单"),
             "开启窗": c("SELECT COUNT(*) FROM 热度窗 WHERE 状态='开启'"),
             "已关闭窗": c("SELECT COUNT(*) FROM 热度窗 WHERE 状态='已关闭'"),

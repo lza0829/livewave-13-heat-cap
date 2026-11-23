@@ -88,17 +88,19 @@ def 此刻() -> str:
 def 初始化库() -> None:
     conn = 连接()
     conn.executescript(建表)
-    if conn.execute("SELECT COUNT(*) AS c FROM 站规").fetchone()["c"] == 0:
-        for k, v in {
-            "站名": "播浪",
-            "窗长秒": "60",
-            "允许迟到秒": "30",
-            "水位推进策略": "事件时最大值",
-            "关窗条件": "水位>=窗止即关闭发射",
-            "旁路条件": "水位>=窗止+允许迟到",
-            "骨架": "互动事件入流→事件时间水位线推进→热度窗关闭发射→迟到修正撤回→窗输出与撤回互证",
-        }.items():
-            conn.execute("INSERT INTO 站规(键, 值) VALUES (?, ?)", (k, v))
+    # 站规逐键 INSERT OR IGNORE：老库升级也能补上新键
+    for k, v in {
+        "站名": "播浪",
+        "窗长秒": "60",
+        "允许迟到秒": "30",
+        "水位推进策略": "事件时最大值",
+        "关窗条件": "水位>=窗止即关闭发射",
+        "旁路条件": "水位>=窗止+允许迟到",
+        "热度上限": "10000",
+        "上限策略": "超额旁路：触发事件整笔旁路留证，窗合计保持上限下最后合法值",
+        "骨架": "互动事件入流→事件时间水位线推进→热度窗关闭发射→迟到修正撤回→窗输出与撤回互证",
+    }.items():
+        conn.execute("INSERT OR IGNORE INTO 站规(键, 值) VALUES (?, ?)", (k, v))
     if conn.execute("SELECT COUNT(*) AS c FROM 直播间").fetchone()["c"] == 0:
         conn.execute(
             "INSERT INTO 直播间(房间键, 标题, 主播, 开播事件时, 状态) VALUES (?,?,?,?,?)",

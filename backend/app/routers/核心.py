@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.db import 夹具目录, 连接
-from app.services import 装载, 贯验, 目录
+from app.services import 上限闸, 装载, 贯验, 目录
 
 路由 = APIRouter(prefix="/api")
 
@@ -102,6 +102,29 @@ def 列旁路():
     conn = 连接()
     try:
         return [dict(r) for r in conn.execute("SELECT * FROM 旁路匣 ORDER BY 编号 DESC LIMIT 100")]
+    finally:
+        conn.close()
+
+
+@路由.get("/上限闸")
+def 列上限闸():
+    """上限闸只读接口：上限、各窗合计、超上限旁路证据、valid。"""
+    conn = 连接()
+    try:
+        return 上限闸.全闸况(conn)
+    finally:
+        conn.close()
+
+
+@路由.get("/上限闸/窗")
+def 取上限闸(窗键: str = ""):
+    """单窗闸况（查询参数传窗键；Starlette 路径参数不支持中文名）。"""
+    conn = 连接()
+    try:
+        况 = 上限闸.闸况(conn, 窗键)
+        if 况 is None:
+            raise HTTPException(404, f"热度窗不存在:{窗键}")
+        return 况
     finally:
         conn.close()
 
